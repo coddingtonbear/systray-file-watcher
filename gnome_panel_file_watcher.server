@@ -7,7 +7,7 @@
         <oaf_attribute name="name" type="string" value="FileWatcher Factory"/>
         <oaf_attribute name="description" type="string" value="Allows one to watch files for changes."/>
     </oaf_server>
-    <oaf_server iid="OAFIID:PushToTalk" type="factory" location="OAFIID:FileWatcher_Factory">
+    <oaf_server iid="OAFIID:FileWatcher" type="factory" location="OAFIID:FileWatcher_Factory">
         <oaf_attribute name="repo_ids" type="stringv">
             <item value="IDL:GNOME/Vertigo/PanelAppletShell:1.0"/>
             <item value="IDL:Bonobo/Control:1.0"/>
