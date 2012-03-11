@@ -53,6 +53,8 @@ class FileWatcher(gtk.StatusIcon):
         self.from_tail = Queue()
         self.to_tail = Queue()
 
+        self.configure_unity()
+        self.set_visible(True)
         self.main()
 
     def configure_unity(self):
