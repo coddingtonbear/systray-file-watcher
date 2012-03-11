@@ -24,29 +24,27 @@ import datetime
 import logging
 from multiprocessing import Process, Queue
 import os
+from optparse import OptionParser
 from subprocess import Popen, PIPE
 import time
 
+from gi.repository import GObject, Gio, GLib
 import gtk
-import gnomeapplet
-import gobject
-import pygtk
 
-class FileWatcher(gnomeapplet.Applet):
+class FileWatcher(gtk.StatusIcon):
     UI_UPDATE_DURATION = datetime.timedelta(seconds = 2)
     INTERVAL = 100 # Milliseconds!
 
-    def __init__(self, applet, iid):
+    def __init__(self, watch):
         self.logger = logging.getLogger('FileWatcher')
         self.logger.debug("Initializing...")
 
-        self.applet = applet
-        self.iid = iid
+        self.watch = watch
 
-        self.label = gtk.Label("...")
-        self.applet.add(self.label)
-        self.applet.show_all()
-    
+        gtk.StatusIcon.__init__(self)
+
+        self.ui_reset()
+
         self.notification_active = False
         self.last_update = datetime.datetime(2000, 1, 1)
 
@@ -57,17 +55,25 @@ class FileWatcher(gnomeapplet.Applet):
 
         self.main()
 
+    def configure_unity(self):
+        application_name = 'systray_watch'
+        schema = 'com.canonical.Unity.Panel'
+        key = 'systray-whitelist'
+        settings = Gio.Settings(schema)
+        value = settings.get_value(key)
+        if value:
+            if 'all' not in value and application_name not in value:
+                unpacked = value.unpack()
+                unpacked.append(application_name)
+                updated = GLib.Variant('as', unpacked)
+                settings.set_value(key, updated)
+                raise Exception("You must log-out and log-in again for your system tray icon to appear.")
+
     def main(self):
-        for path in self.get_files_to_watch():
-            self.watch_file(path)
-        gobject.timeout_add(self.INTERVAL, self.check_for_notifications)
+        self.watch_file(self.watch)
+        GObject.timeout_add(self.INTERVAL, self.check_for_notifications)
         self.ui_reset()
         self.logger.info("Started.")
-
-    def get_files_to_watch(self):
-        return [
-                "/tmp/lsyncd.log"
-            ]
 
     def watch_file(self, file_path):
         self.logger.info("Spawing process for watching \"%s\"" % file_path)
@@ -98,13 +104,19 @@ class FileWatcher(gnomeapplet.Applet):
     def ui_update_new_data(self, data):
         self.notification_active = True
         self.last_update = datetime.datetime.now()
-        self.label.set_markup("<span foreground='#FF5500'>RW</span>")
-        self.applet.show_all()
+        self.set_from_file(os.path.join(
+                os.path.dirname(__file__),
+                'icons/updating.png'
+            )) 
+        self.set_tooltip("Updates in progress to %s" % self.watch)
 
     def ui_reset(self):
         self.notification_active = False
-        self.label.set_markup("<span foreground='#FF0000'></span>")
-        self.applet.show_all()
+        self.set_from_file(os.path.join(
+                os.path.dirname(__file__),
+                'icons/idle.png'
+            ))
+        self.set_tooltip("No recent changes to %s" % self.watch)
 
     def ui_notification_out_of_date(self):
         if datetime.datetime.now() > self.last_update + self.UI_UPDATE_DURATION:
@@ -152,28 +164,17 @@ class FileWatcherProcess(object):
                 )
             )
 
-def file_watcher_factory(applet, iid):
-    try:
-        FileWatcher(applet, iid)
-    except Exception as e:
-        logging.exception(e)
-    return gtk.TRUE
+def run_from_cmdline():
+    parser = OptionParser()
+    parser.add_option('-v', '--verbose', dest='verbose', action='store_true', default=False)
+    (opts, args, ) = parser.parse_args()
 
-pygtk.require('2.0')
-
-gobject.type_register(FileWatcher)
-
-logging.basicConfig(
-        filename=os.path.expanduser("~/.file_watcher.log"),
-        level=logging.DEBUG
-    )
-
-if __name__ == "__main__":
-    logging.info("Starting via BonoboFactory.")
-    gnomeapplet.bonobo_factory(
-            "OAFIID:FileWatcher_Factory",
-            FileWatcher.__gtype__,
-            "hello",
-            "0",
-           file_watcher_factory 
+    logging.basicConfig(
+            level=logging.DEBUG if opts.verbose else logging.WARNING
         )
+
+    if len(args) < 1:
+        parser.error("You must specify the path to the filename to watch as the first argument.")
+
+    FileWatcher(args[0])
+    gtk.main()

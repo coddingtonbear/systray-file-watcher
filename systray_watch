@@ -1,0 +1,4 @@
+#!/usr/bin/python
+
+from systray_file_watcher_app.application import run_from_cmdline
+run_from_cmdline()
