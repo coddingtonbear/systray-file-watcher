@@ -35,12 +35,11 @@ class FileWatcher(gtk.StatusIcon):
     UI_UPDATE_DURATION = datetime.timedelta(seconds = 2)
     INTERVAL = 100 # Milliseconds!
 
-    def __init__(self, watch):
+    def __init__(self, watch, show_notifications):
         self.logger = logging.getLogger('FileWatcher')
         self.logger.debug("Initializing...")
-        Notify.init('Initializing...')
-        self.notificaiton = Notify.Notification.new('Syncing', 
-            'Syncing in progress...', 'dialog-information')
+
+        self.init_notifications(show_notifications)
         self.notification_active = False
         self.watch = watch
 
@@ -58,6 +57,18 @@ class FileWatcher(gtk.StatusIcon):
         self.configure_unity()
         self.set_visible(True)
         self.main()
+
+    def init_notifications(self, show_notifications):
+        """
+        Initializes notifications
+        """
+        self.show_notifications = show_notifications
+        if show_notifications:
+            Notify.init('Initializing...')
+            self.notificaiton = Notify.Notification.new('Syncing',
+                'Syncing in progress...', 'dialog-information')
+        else:
+            self.notificaiton = None
 
     def configure_unity(self):
         application_name = 'systray_watch'
@@ -107,7 +118,7 @@ class FileWatcher(gtk.StatusIcon):
     # UI bits
 
     def ui_update_new_data(self, data):
-        if not self.notification_active:
+        if not self.notification_active and self.show_notifications:
             self.notificaiton.show()
         self.notification_active = True
         self.last_update = datetime.datetime.now()
@@ -118,7 +129,7 @@ class FileWatcher(gtk.StatusIcon):
         self.set_tooltip("Updates in progress to %s" % self.watch)
 
     def ui_reset(self):
-        if self.notification_active:
+        if self.notification_active and self.show_notifications:
             self.notificaiton.close()
         self.notification_active = False
         self.set_from_file(os.path.join(
@@ -175,6 +186,7 @@ class FileWatcherProcess(object):
 
 def run_from_cmdline():
     parser = OptionParser()
+    parser.add_option('-n', '--notifications', dest='notifications', action='store_true', default=False)
     parser.add_option('-v', '--verbose', dest='verbose', action='store_true', default=False)
     (opts, args, ) = parser.parse_args()
 
@@ -185,5 +197,5 @@ def run_from_cmdline():
     if len(args) < 1:
         parser.error("You must specify the path to the filename to watch as the first argument.")
 
-    FileWatcher(args[0])
+    FileWatcher(args[0], opts.notifications)
     gtk.main()
