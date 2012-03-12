@@ -28,7 +28,7 @@ from optparse import OptionParser
 from subprocess import Popen, PIPE
 import time
 
-from gi.repository import GObject, Gio, GLib
+from gi.repository import GObject, Gio, GLib, Notify
 import gtk
 
 class FileWatcher(gtk.StatusIcon):
@@ -38,14 +38,16 @@ class FileWatcher(gtk.StatusIcon):
     def __init__(self, watch):
         self.logger = logging.getLogger('FileWatcher')
         self.logger.debug("Initializing...")
-
+        Notify.init('Initializing...')
+        self.notificaiton = Notify.Notification.new('Syncing', 
+            'Syncing in progress...', 'dialog-information')
+        self.notification_active = False
         self.watch = watch
 
         gtk.StatusIcon.__init__(self)
 
         self.ui_reset()
-
-        self.notification_active = False
+        
         self.last_update = datetime.datetime(2000, 1, 1)
 
         self.procs = {}
@@ -105,6 +107,8 @@ class FileWatcher(gtk.StatusIcon):
     # UI bits
 
     def ui_update_new_data(self, data):
+        if not self.notification_active:
+            self.notificaiton.show()
         self.notification_active = True
         self.last_update = datetime.datetime.now()
         self.set_from_file(os.path.join(
@@ -114,6 +118,8 @@ class FileWatcher(gtk.StatusIcon):
         self.set_tooltip("Updates in progress to %s" % self.watch)
 
     def ui_reset(self):
+        if self.notification_active:
+            self.notificaiton.close()
         self.notification_active = False
         self.set_from_file(os.path.join(
                 os.path.dirname(__file__),
