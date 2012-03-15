@@ -38,7 +38,7 @@ class FileWatcher(gtk.StatusIcon):
     def __init__(self, watch, show_notifications):
         self.logger = logging.getLogger('FileWatcher')
         self.logger.debug("Initializing...")
-
+        
         self.init_notifications(show_notifications)
         self.notification_active = False
         self.watch = watch
@@ -130,7 +130,10 @@ class FileWatcher(gtk.StatusIcon):
 
     def ui_reset(self):
         if self.notification_active and self.show_notifications:
-            self.notificaiton.close()
+            try:
+                self.notificaiton.close()
+            except gio.Error, e:
+                print "Tried to close notification that was already closed."
         self.notification_active = False
         self.set_from_file(os.path.join(
                 os.path.dirname(__file__),
