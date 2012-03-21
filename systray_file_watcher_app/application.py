@@ -29,6 +29,7 @@ from subprocess import Popen, PIPE
 import time
 
 from gi.repository import GObject, Gio, GLib, Notify
+import gio
 import gtk
 
 class FileWatcher(gtk.StatusIcon):
@@ -132,7 +133,7 @@ class FileWatcher(gtk.StatusIcon):
         if self.notification_active and self.show_notifications:
             try:
                 self.notificaiton.close()
-            except gio.Error, e:
+            except gio.Error as e:
                 print "Tried to close notification that was already closed."
         self.notification_active = False
         self.set_from_file(os.path.join(
