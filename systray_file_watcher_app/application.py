@@ -29,25 +29,27 @@ from subprocess import Popen, PIPE
 import time
 
 from gi.repository import GObject, Gio, GLib, Notify
-import gio
 import gtk
 
+
 class FileWatcher(gtk.StatusIcon):
-    UI_UPDATE_DURATION = datetime.timedelta(seconds = 2)
-    INTERVAL = 100 # Milliseconds!
+    UI_UPDATE_DURATION = datetime.timedelta(seconds=3)
+    UI_EXPIRE_SOON_DURATION = datetime.timedelta(seconds=0.5)
+    INTERVAL = 100  # Milliseconds!
 
     def __init__(self, watch, show_notifications):
         self.logger = logging.getLogger('FileWatcher')
         self.logger.debug("Initializing...")
-        
+
         self.init_notifications(show_notifications)
         self.notification_active = False
+        self.notification_expiring = False
         self.watch = watch
 
         gtk.StatusIcon.__init__(self)
 
         self.ui_reset()
-        
+
         self.last_update = datetime.datetime(2000, 1, 1)
 
         self.procs = {}
@@ -111,6 +113,9 @@ class FileWatcher(gtk.StatusIcon):
             self.logger.debug("Found new data.")
             data_object = self.from_tail.get_nowait()
             self.ui_update_new_data(data_object)
+        if self.ui_notification_expiring_soon() and self.notification_active and not self.notification_expiring:
+            self.logger.debug("Setting notification as expiring soon.")
+            self.ui_update_expiring_soon()
         if self.ui_notification_out_of_date() and self.notification_active:
             self.logger.debug("Setting notification as expired.")
             self.ui_reset()
@@ -122,12 +127,20 @@ class FileWatcher(gtk.StatusIcon):
         if not self.notification_active and self.show_notifications:
             self.notificaiton.show()
         self.notification_active = True
+        self.notification_expiring = False
         self.last_update = datetime.datetime.now()
         self.set_from_file(os.path.join(
                 os.path.dirname(__file__),
                 'icons/updating.png'
-            )) 
+            ))
         self.set_tooltip("Updates in progress to %s" % self.watch)
+
+    def ui_update_expiring_soon(self):
+        self.notification_expiring = True
+        self.set_from_file(os.path.join(
+                os.path.dirname(__file__),
+                'icons/expiring_soon.png'
+            ))
 
     def ui_reset(self):
         if self.notification_active and self.show_notifications:
@@ -136,6 +149,7 @@ class FileWatcher(gtk.StatusIcon):
             except gio.Error as e:
                 print "Tried to close notification that was already closed."
         self.notification_active = False
+        self.notification_expiring = False
         self.set_from_file(os.path.join(
                 os.path.dirname(__file__),
                 'icons/idle.png'
@@ -147,8 +161,14 @@ class FileWatcher(gtk.StatusIcon):
             return True
         return False
 
+    def ui_notification_expiring_soon(self):
+        if datetime.datetime.now() > self.last_update + self.UI_EXPIRE_SOON_DURATION:
+            return True
+        return False
+
+
 class FileWatcherProcess(object):
-    POLLING_INTERVAL = 0.1 # Seconds
+    POLLING_INTERVAL = 0.1  # Seconds
 
     def __init__(self, path, pipe_in, pipe_out):
         self.path = path
@@ -157,7 +177,7 @@ class FileWatcherProcess(object):
 
         self.logger = logging.getLogger('FileWatcherProcess')
 
-        self.main();
+        self.main()
 
     def main(self):
         self.logger.debug("Opening process to watch for file data.")
@@ -166,10 +186,10 @@ class FileWatcherProcess(object):
                 'tail',
                 '-f',
                 self.path,
-            ], 
+            ],
             shell=False,
             stdout=PIPE,
-            bufsize=1, # Line-buffered
+            bufsize=1,  # Line-buffered
         )
         while True:
             self.proc.stdout.flush()
@@ -187,6 +207,7 @@ class FileWatcherProcess(object):
                     data
                 )
             )
+
 
 def run_from_cmdline():
     parser = OptionParser()
